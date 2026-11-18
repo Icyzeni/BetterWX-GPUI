@@ -60,7 +60,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          $zip = Get-ChildItem "GPUI_KIT\dist\*.zip" | Select-Object -First 1
+          $ErrorActionPreference = 'Stop'
+          $zip = Get-ChildItem -Path "GPUI_KIT/dist/*.zip" -File | Select-Object -First 1
           if (-not $zip) { throw "找不到 zip 产物" }
           $ver = "${{ inputs.version }}"
           if ([string]::IsNullOrWhiteSpace($ver)) {
@@ -80,7 +81,16 @@ jobs:
           - BetterWX-GPUI.exe（GUI，管理员权限，无终端窗口）
           - betterwx.exe（官方原版核心）
           "@
+          $notesFile = Join-Path $env:RUNNER_TEMP 'betterwx-release-notes.md'
+          Set-Content -Path $notesFile -Value $notes -Encoding utf8
+
           $pre = [System.Convert]::ToBoolean('${{ inputs.prerelease }}')
-          $extra = if ($pre) { "--prerelease" } else { "" }
-          gh release create $tag $zip.FullName --title "BetterWX-GPUI $tag" --notes $notes $extra
-          if ($LASTEXITCODE -ne 0) { throw "创建 Release 失败" }
+          $ghArgs = @(
+            'release', 'create', $tag, $zip.FullName,
+            '--title', "BetterWX-GPUI $tag",
+            '--notes-file', $notesFile
+          )
+          if ($pre) { $ghArgs += '--prerelease' }
+
+          & gh @ghArgs
+          if ($LASTEXITCODE -ne 0) { throw "创建 Release 失败 (exit $LASTEXITCODE)" }
