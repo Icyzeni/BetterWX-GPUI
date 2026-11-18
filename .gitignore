@@ -1,0 +1,20 @@
+# ---- Rust / GPUI 构建产物 ----
+GPUI_KIT/target/
+GPUI_KIT/dist/
+GPUI_KIT/vendor/
+GPUI_KIT/*.log
+GPUI_KIT/_*/
+*.spec
+
+# ---- Python 旧版（本地归档，不纳入本仓库） ----
+py_version/
+
+# ---- 系统 / 编辑器 ----
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.tmp
+
+# ---- 本地工作记录 ----
+.workbuddy-ai/

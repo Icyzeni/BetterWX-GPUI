@@ -1,0 +1,19 @@
+[package]
+name = "betterwx-gpui"
+version = "0.1.0"
+edition = "2024"
+description = "BetterWX graphical console built with GPUI Kit"
+publish = false
+
+[dependencies]
+gpui-kit = "0.9.1"
+anyhow = "1"
+
+# Keep the first (very large) dependency build reasonably fast; this is a UI
+# shell, not a compute workload.
+[profile.release]
+opt-level = 1
+lto = false
+codegen-units = 16
+debug = false
+strip = true

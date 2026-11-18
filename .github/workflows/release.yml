@@ -1,0 +1,86 @@
+name: 构建并发布 BetterWX-GPUI
+
+# 手动触发：进入 Actions 页 -> 选择本工作流 -> Run workflow，可指定版本号。
+# 构建产物（zip）会作为本次 workflow 的 Release 资产上传。
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本号（如 1.0.0，留空用日期）'
+        required: false
+        default: ''
+      core_version:
+        description: '原版 BetterWX 核心 tag（如 v2.1.1，留空取最新）'
+        required: false
+        default: ''
+      prerelease:
+        description: '标记为预发布'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 Cargo 依赖
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: GPUI_KIT
+
+      - name: 构建（下载核心 + 编译 + 打包）
+        id: build
+        shell: pwsh
+        run: |
+          $args = @{
+            Version = '${{ inputs.version }}'
+            CoreVersion = '${{ inputs.core_version }}'
+          }
+          & .\scripts\build.ps1 @args
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: 上传构建产物（artifact）
+        uses: actions/upload-artifact@v4
+        with:
+          name: betterwx-gpui-package
+          path: GPUI_KIT/dist/*.zip
+          if-no-files-found: error
+
+      - name: 创建 Release 并上传 zip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem "GPUI_KIT\dist\*.zip" | Select-Object -First 1
+          if (-not $zip) { throw "找不到 zip 产物" }
+          $ver = "${{ inputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($ver)) {
+            $ver = Get-Date -Format "yyyy.MM.dd"
+          }
+          $tag = "v$ver"
+          $notes = @"
+          BetterWX-GPUI — GPUI Kit 图形界面，补丁逻辑由原版 betterwx.exe 执行。
+
+          ## 使用
+          1. 下载下面的 zip 并解压
+          2. 保持 BetterWX-GPUI.exe 与 betterwx.exe 在同一目录
+          3. 双击运行（会弹 UAC 请求管理员权限）
+          4. 完全退出微信后再应用补丁
+
+          ## 包含
+          - BetterWX-GPUI.exe（GUI，管理员权限，无终端窗口）
+          - betterwx.exe（官方原版核心）
+          "@
+          $pre = [System.Convert]::ToBoolean('${{ inputs.prerelease }}')
+          $extra = if ($pre) { "--prerelease" } else { "" }
+          gh release create $tag $zip.FullName --title "BetterWX-GPUI $tag" --notes $notes $extra
+          if ($LASTEXITCODE -ne 0) { throw "创建 Release 失败" }
